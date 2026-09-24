@@ -1,0 +1,45 @@
+[project]
+name = "lakecheck"
+version = "0.2.0"
+description = "Lightweight, zero-JVM data quality CLI for Delta Lake and Apache Iceberg."
+requires-python = ">=3.9"
+dependencies = [
+    # Zero-JVM: metadata via delta-rs / PyIceberg, data scans via PyArrow. No Spark.
+    "pyarrow>=14.0",
+    "deltalake>=0.15,<0.19",
+    "pyiceberg[pyarrow]>=0.6,<0.8",
+    "boto3>=1.26",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.3.0",
+]
+
+[project.scripts]
+lakecheck = "lakecheck.cli:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["lakecheck*"]
+exclude = ["tests*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# E: pycodestyle, F: Pyflakes, I: isort, S: flake8-bandit (Security)
+select = ["E", "F", "I", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+# S101: Allow assert in tests
+# S108: Allow hardcoded temp file paths in tests
+"tests/*" = ["S101", "S108"]
+# S101: Allow assert in test scripts
+# S603/S607: Allow subprocess in the local dev smoke-test script
+"scripts/*" = ["S101", "S603", "S607"]

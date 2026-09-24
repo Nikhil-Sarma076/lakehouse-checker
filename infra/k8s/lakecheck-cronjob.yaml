@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: lakecheck-nightly
+  namespace: data-platform
+spec:
+  schedule: "0 2 * * *" # 2:00 AM every night
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: lakecheck
+        spec:
+          serviceAccountName: lakecheck-sa
+          securityContext:
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            runAsNonRoot: true
+          restartPolicy: Never
+          containers:
+            - name: lakecheck
+              image: my-registry/lakecheck:latest
+              imagePullPolicy: Always
+              args:
+                - "s3://my-data-bucket/tables/users"
+                # --format is optional; lakecheck auto-detects Delta vs Iceberg
+                # from the table layout. Set it explicitly to skip detection:
+                - "--format"
+                - "delta"
+                - "--pk"
+                - "user_id"
+                - "--check-nulls"
+                - "email,status"
+                - "--slack-webhook"
+                - "$(SLACK_WEBHOOK_URL)"
+              env:
+                - name: SLACK_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: lakecheck-secrets
+                      key: slack-webhook-url
+                # S3 access via IRSA (see infra/terraform); no static keys.
+              # Zero-JVM (delta-rs / PyIceberg / PyArrow) → far lighter than a
+              # Spark-based checker. Sized for O(Δ) scans of new-commit files only.
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"
