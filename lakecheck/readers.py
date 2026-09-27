@@ -12,7 +12,7 @@ Both readers preserve the performance contract:
 - **O(Δ)** null / duplicate: read only the data files *added* by the target
   commit, into PyArrow — never a full-table scan, and never a JVM/Spark.
 """
-
+import os
 import json
 from enum import Enum
 from typing import Any, Dict, List, Protocol, runtime_checkable
@@ -156,7 +156,23 @@ class IcebergReader:
             from pyiceberg.table import StaticTable
 
             metadata_file = self._latest_metadata_file()
-            self._table = StaticTable.from_metadata(metadata_file)
+            properties = {}
+
+            endpoint = os.environ.get("AWS_ENDPOINT_URL")
+            if endpoint:
+                properties["s3.endpoint"] = endpoint
+
+            access_key = os.environ.get("AWS_ACCESS_KEY_ID")
+            if access_key:
+                properties["s3.access-key-id"] = access_key
+
+            secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+            if secret_key:
+                properties["s3.secret-access-key"] = secret_key
+
+            properties["s3.region"] = os.environ.get("AWS_REGION") or "us-east-1"
+
+            self._table = StaticTable.from_metadata(metadata_file, properties)
             # Snapshots in chronological order; index == our "version".
             self._snapshots = list(self._table.metadata.snapshots)
         return self._table
